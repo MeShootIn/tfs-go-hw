@@ -1,5 +1,5 @@
 /*
-Package hourglass implements a function Hourglass that prints the ASCII image of an hourglass to stdout.
+Package hourglass implements functions for displaying the ASCII image of an hourglass to stdout.
 */
 package hourglass
 
@@ -8,103 +8,109 @@ import (
 	"tfs-go-hw/lection01/bashcolor"
 )
 
-// Functions returned by GetHourglass.
 type (
-	SizeSetter            func(size int)
-	CharSetter            func(char rune)
-	CharColorSetter       func(color bashcolor.Color)
-	BackgroundColorSetter func(color bashcolor.Color)
-	Hourglass             func()
+	// ParamStorage is a function that "stores" output parameters
+	ParamStorage func() (int, rune, bashcolor.Color, bashcolor.Color)
 )
 
-// GetHourglass returns four setters for setting text properties like foreground and background colors and
-// the main function for displaying the hourglass.
-func GetHourglass() (
-	setSize SizeSetter,
-	setChar CharSetter,
-	setCharColor CharColorSetter,
-	setBackgroundColor BackgroundColorSetter,
-	hg Hourglass,
-) {
-	// Default values
-	var (
-		Size            = 15
-		Char            = 'X'
-		CharColor       = bashcolor.Blue
-		BackgroundColor = bashcolor.Black
-	)
-
-	// Setters
-	setSize = func(size int) {
-		Size = size
-	}
-
-	setChar = func(char rune) {
-		Char = char
-	}
-
-	setCharColor = func(charColor bashcolor.Color) {
-		CharColor = charColor
-	}
-
-	setBackgroundColor = func(backgroundColor bashcolor.Color) {
-		BackgroundColor = backgroundColor
-	}
-	//
+// displayHourglass is a main function for displaying hourglass.
+func displayHourglass(size int, char rune, charColor bashcolor.Color, backgroundColor bashcolor.Color) {
+	charString := fmt.Sprintf("%c", char)
 
 	lineBreak := func() {
 		fmt.Println()
 	}
 
-	// Main function for drawing Hourglass
-	hg = func() {
-		charString := fmt.Sprintf("%c", Char)
+	printColoredString := func(str string, backgroundColor bashcolor.Color, charColor bashcolor.Color) {
+		fmt.Print(bashcolor.Background(backgroundColor), bashcolor.Text(charColor), str, bashcolor.Reset())
+	}
 
-		printColoredString := func(str string, backgroundColor bashcolor.Color, charColor bashcolor.Color) {
-			fmt.Print(bashcolor.Background(backgroundColor), bashcolor.Text(charColor), str, bashcolor.Reset())
+	printBase := func() {
+		for i := 1; i <= size; i++ {
+			printColoredString(charString, backgroundColor, charColor)
 		}
+	}
 
-		printBase := func() {
-			for i := 1; i <= Size; i++ {
-				printColoredString(charString, BackgroundColor, CharColor)
-			}
-		}
-
-		printLine := func(glasses []bool, line int) {
-			for column, glass := range glasses {
-				if glass {
-					printColoredString(charString, BackgroundColor, CharColor)
+	printLine := func(glasses []bool, line int) {
+		for column, glass := range glasses {
+			if glass {
+				printColoredString(charString, backgroundColor, charColor)
+			} else {
+				// Sand at the top
+				if 1 <= line && line <= (size-3)/2 && line+1 <= column && column <= size-line-2 {
+					printColoredString(" ", bashcolor.Yellow, charColor)
 				} else {
-					// Sand at the top
-					if 1 <= line && line <= (Size-3)/2 && line+1 <= column && column <= Size-line-2 {
-						printColoredString(" ", bashcolor.Yellow, CharColor)
-					} else {
-						printColoredString(" ", BackgroundColor, CharColor)
-					}
+					printColoredString(" ", backgroundColor, charColor)
 				}
 			}
 		}
+	}
 
-		printBase()
-		lineBreak()
+	printBase()
+	lineBreak()
 
-		chars := make([]bool, Size)
+	chars := make([]bool, size)
 
-		for line := 1; line <= Size-2; line++ {
-			chars[line] = true
-			chars[Size-line-1] = true
+	for line := 1; line <= size-2; line++ {
+		chars[line] = true
+		chars[size-line-1] = true
 
-			printLine(chars, line)
+		printLine(chars, line)
 
-			chars[line] = false
-			chars[Size-line-1] = false
+		chars[line] = false
+		chars[size-line-1] = false
 
-			lineBreak()
-		}
-
-		printBase()
 		lineBreak()
 	}
 
-	return setSize, setChar, setCharColor, setBackgroundColor, hg
+	printBase()
+	lineBreak()
+}
+
+// DisplayHourglass method displays the ASCII image of an hourglass to stdout with specific parameters.
+func (p ParamStorage) DisplayHourglass() {
+	displayHourglass(p())
+}
+
+// SetSize method returns a new ParamStorage with a new size.
+func (p ParamStorage) SetSize(size int) ParamStorage {
+	_, Char, CharColor, BackgroundColor := p()
+
+	return func() (int, rune, bashcolor.Color, bashcolor.Color) {
+		return size, Char, CharColor, BackgroundColor
+	}
+}
+
+// SetChar method returns a new ParamStorage with a new char.
+func (p ParamStorage) SetChar(char rune) ParamStorage {
+	Size, _, CharColor, BackgroundColor := p()
+
+	return func() (int, rune, bashcolor.Color, bashcolor.Color) {
+		return Size, char, CharColor, BackgroundColor
+	}
+}
+
+// SetCharColor method returns a new ParamStorage with a new char color.
+func (p ParamStorage) SetCharColor(charColor bashcolor.Color) ParamStorage {
+	Size, Char, _, BackgroundColor := p()
+
+	return func() (int, rune, bashcolor.Color, bashcolor.Color) {
+		return Size, Char, charColor, BackgroundColor
+	}
+}
+
+// SetBackgroundColor method returns a new ParamStorage with a new background color.
+func (p ParamStorage) SetBackgroundColor(backgroundColor bashcolor.Color) ParamStorage {
+	Size, Char, CharColor, _ := p()
+
+	return func() (int, rune, bashcolor.Color, bashcolor.Color) {
+		return Size, Char, CharColor, backgroundColor
+	}
+}
+
+// GetParamStorage returns a ParamStorage with default parameter values.
+func GetParamStorage() ParamStorage {
+	return func() (int, rune, bashcolor.Color, bashcolor.Color) {
+		return 15, 'X', bashcolor.Blue, bashcolor.Black
+	}
 }

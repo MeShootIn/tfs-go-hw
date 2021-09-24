@@ -24,12 +24,12 @@ const (
 	LightGray
 )
 
-// Text returns the beginning of the color modification.
+// Text returns the beginning of the text color modification.
 func Text(color Color) string {
 	return fmt.Sprintf("\033[3%dm", color)
 }
 
-// Background returns the beginning of the color modification.
+// Background returns the beginning of the background color modification.
 func Background(color Color) string {
 	return fmt.Sprintf("\033[4%dm", color)
 }
