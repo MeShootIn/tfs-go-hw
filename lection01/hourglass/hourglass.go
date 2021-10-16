@@ -5,7 +5,7 @@ package hourglass
 
 import (
 	"fmt"
-	"tfs-go-hw/lection01/bashcolor"
+	"lection01/bashcolor"
 )
 
 type (

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"tfs-go-hw/lection02/bill"
+	"lection02/bill"
 )
 
 const outputFileName = "out.json"

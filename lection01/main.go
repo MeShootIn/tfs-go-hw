@@ -2,8 +2,8 @@ package main
 
 import (
 	"fmt"
-	"tfs-go-hw/lection01/bashcolor"
-	"tfs-go-hw/lection01/hourglass"
+	"lection01/bashcolor"
+	"lection01/hourglass"
 )
 
 // An example how to use package hourglass
