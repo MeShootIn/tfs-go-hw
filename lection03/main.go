@@ -6,6 +6,7 @@ import (
 	"lection03/generator"
 	"os"
 	"os/signal"
+	"sync"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -17,7 +18,7 @@ func main() {
 	logger := logrus.New()
 	ctx, cancel := context.WithCancel(context.Background())
 
-	// Signal channel for catching SIGINT (Ctrl+C) signals.
+	// Signal channel for catching SIGINT (Ctrl+C) signals
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
 	defer func() {
@@ -33,24 +34,30 @@ func main() {
 	logger.Info("start prices generator...")
 	prices := pg.Prices(ctx)
 
-	ch, err := candlehandler.NewCandleHandler(candlehandler.Config{
+	candleHandler := candlehandler.CandleHandler{
 		Logger: logger,
-	})
-
-	if err != nil {
-		logger.Fatalln(err)
-
-		return
 	}
 
+	wg := sync.WaitGroup{}
+
 	// Catching SIGINT and cancelling the ctx context
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
+
 		<-signalChan
 		cancel()
 		logger.Info("price generation process cancelled")
+		logger.Info("candles for all periods are saved in the candles_{%period}.csv files")
 	}()
 
 	// Main handling process
-	ch.Handle(prices)
-	logger.Info("candles for all periods are saved in the candles_{period}.csv files")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		candleHandler.Handle(prices)
+	}()
+
+	wg.Wait()
 }

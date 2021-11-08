@@ -1,5 +1,5 @@
 /*
-Package candlehandler provides work with Japanese candles.
+Package candlehandler provides handling of Japanese candles.
 */
 package candlehandler
 
@@ -15,58 +15,36 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type (
-	CandleMap map[string]domain.Candle
-	WriterMap map[domain.CandlePeriod]*csv.Writer
-)
+type CandleMap = map[string]domain.Candle
 
 // CandleHandler is a struct for handling Japanese candles.
 type CandleHandler struct {
-	logger    *logrus.Logger
-	writerMap WriterMap
-}
-
-// Config is an intermediary parameter for the NewCandleHandler constructor.
-type Config struct {
 	Logger *logrus.Logger
 }
 
-// NewCandleHandler is a public constructor for the CandleHandler struct.
-func NewCandleHandler(config Config) (*CandleHandler, error) {
-	getWriter := func(fileName string) (*csv.Writer, error) {
-		file, err := os.Create(fileName)
-
-		if err != nil {
-			return nil, err
-		}
-
-		return csv.NewWriter(file), nil
-	}
-
-	candleHandler := CandleHandler{
-		logger:    config.Logger,
-		writerMap: WriterMap{},
-	}
+// Handle executes the pipeline process.
+func (h *CandleHandler) Handle(prices <-chan domain.Price) {
+	wg := &sync.WaitGroup{}
+	candles := pricesToCandles(prices, wg)
 
 	for _, period := range [...]domain.CandlePeriod{
 		domain.CandlePeriod1m,
 		domain.CandlePeriod2m,
 		domain.CandlePeriod10m,
 	} {
-		writer, err := getWriter("candles_" + string(period) + ".csv")
-
-		if err != nil {
-			return nil, err
-		}
-
-		candleHandler.writerMap[period] = writer
+		candles = h.convertCandles(candles, period, wg)
+		candles = h.saveCandles(candles, period, wg)
 	}
 
-	return &candleHandler, nil
+	for range candles {
+	}
+
+	wg.Wait()
 }
 
-// pricesToCandles converts domain.Price to domain.Candle channel, representing the price as a special case of a candle.
-func pricesToCandles(wg *sync.WaitGroup, prices <-chan domain.Price) <-chan domain.Candle {
+// pricesToCandles converts domain.Price channel to domain.Candle channel, representing the price as a special case of
+// a candle.
+func pricesToCandles(prices <-chan domain.Price, wg *sync.WaitGroup) <-chan domain.Candle {
 	candles := make(chan domain.Candle)
 
 	wg.Add(1)
@@ -92,62 +70,11 @@ func pricesToCandles(wg *sync.WaitGroup, prices <-chan domain.Price) <-chan doma
 	return candles
 }
 
-// Handle executes the pipeline process.
-func (h *CandleHandler) Handle(prices <-chan domain.Price) {
-	wg := &sync.WaitGroup{}
-	candles := pricesToCandles(wg, prices)
-
-	for _, period := range [...]domain.CandlePeriod{
-		domain.CandlePeriod1m,
-		domain.CandlePeriod2m,
-		domain.CandlePeriod10m,
-	} {
-		candles = h.convertCandles(candles, wg, period)
-	}
-
-	for range candles {
-	}
-
-	wg.Wait()
-}
-
-// printCandleMap prints candles that are in the same period in .csv file.
-func (h *CandleHandler) printCandleMap(candleMap CandleMap, period domain.CandlePeriod) {
-	for _, candle := range candleMap {
-		fields := []string{
-			candle.Ticker,
-			fmt.Sprint(candle.TS),
-			fmt.Sprint(candle.Open),
-			fmt.Sprint(candle.High),
-			fmt.Sprint(candle.Low),
-			fmt.Sprint(candle.Close),
-		}
-
-		if err := h.writerMap[period].Write(fields); err != nil {
-			h.logger.Fatalln("error writing to csv:", err)
-		}
-	}
-
-	h.writerMap[period].Flush()
-
-	if err := h.writerMap[period].Error(); err != nil {
-		h.logger.Fatalln(err)
-	}
-}
-
-// convertCandles function converts candles from current to given period.
+// convertCandles converts candles from current to given period.
 func (h *CandleHandler) convertCandles(
-	in <-chan domain.Candle, wg *sync.WaitGroup, period domain.CandlePeriod,
+	in <-chan domain.Candle, period domain.CandlePeriod, wg *sync.WaitGroup,
 ) <-chan domain.Candle {
 	out := make(chan domain.Candle)
-
-	handleCandlesTS := func(candleMap CandleMap) {
-		h.printCandleMap(candleMap, period)
-
-		for _, candle := range candleMap {
-			out <- candle
-		}
-	}
 
 	wg.Add(1)
 	go func() {
@@ -159,19 +86,25 @@ func (h *CandleHandler) convertCandles(
 		ts := time.Time{}
 		candleMap := CandleMap{}
 
+		closeCandles := func(candleMap CandleMap) {
+			for _, candle := range candleMap {
+				out <- candle
+			}
+		}
+
 		for candleIn := range in {
-			periodTS, err := domain.PeriodTS(period, candleIn.TS)
+			currentTS, err := domain.PeriodTS(period, candleIn.TS)
 
 			if err != nil {
-				h.logger.Errorln(err)
+				h.Logger.Fatalln(err)
 			}
 
-			if !periodTS.Equal(ts) && len(candleMap) != 0 {
-				handleCandlesTS(candleMap)
+			if !currentTS.Equal(ts) && len(candleMap) != 0 {
+				closeCandles(candleMap)
 				candleMap = CandleMap{}
 			}
 
-			ts = periodTS
+			ts = currentTS
 			candle, ok := candleMap[candleIn.Ticker]
 
 			if ok {
@@ -199,7 +132,54 @@ func (h *CandleHandler) convertCandles(
 			candleMap[candleIn.Ticker] = candle
 		}
 
-		handleCandlesTS(candleMap)
+		closeCandles(candleMap)
+	}()
+
+	return out
+}
+
+// saveCandles saves candles to the appropriate file.
+func (h *CandleHandler) saveCandles(
+	in <-chan domain.Candle, period domain.CandlePeriod, wg *sync.WaitGroup,
+) <-chan domain.Candle {
+	out := make(chan domain.Candle)
+	file, err := os.Create(fmt.Sprintf("candles_%s.csv", period))
+
+	if err != nil {
+		h.Logger.Fatalln("file creation error")
+	}
+
+	writer := csv.NewWriter(file)
+
+	wg.Add(1)
+	go func() {
+		defer func() {
+			close(out)
+			wg.Done()
+		}()
+
+		for candle := range in {
+			fields := []string{
+				candle.Ticker,
+				fmt.Sprint(candle.TS),
+				fmt.Sprint(candle.Open),
+				fmt.Sprint(candle.High),
+				fmt.Sprint(candle.Low),
+				fmt.Sprint(candle.Close),
+			}
+
+			if err := writer.Write(fields); err != nil {
+				h.Logger.Fatalln("error writing to csv:", err)
+			}
+
+			writer.Flush()
+
+			if err := writer.Error(); err != nil {
+				h.Logger.Fatalln(err)
+			}
+
+			out <- candle
+		}
 	}()
 
 	return out
