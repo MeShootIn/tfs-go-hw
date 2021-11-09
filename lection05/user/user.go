@@ -13,8 +13,6 @@ type User struct {
 	Password *Password `json:"password"`
 }
 
-type DataBase map[Login]User
-
 var (
 	ErrNoLogin           = errors.New("login was not passed")
 	ErrNoPassword        = errors.New("password was not passed")
@@ -59,6 +57,8 @@ func ValidateUser(user User) error {
 	return nil
 }
 
+type DataBase map[Login]User
+
 func (db DataBase) Register(user User) error {
 	if err := ValidateUser(user); err != nil {
 		return err
@@ -92,4 +92,14 @@ func (db DataBase) Login(user User) error {
 	}
 
 	return nil
+}
+
+func (db DataBase) GetUser(login string) *User {
+	u, ok := db[login]
+
+	if !ok {
+		return nil
+	}
+
+	return &u
 }

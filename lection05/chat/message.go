@@ -28,7 +28,7 @@ func (c Chat) String() string {
 	output := ""
 
 	for _, t := range times {
-		output += "[" + t.Format(time.RFC822) + "] | " + c[t].Author + " >>> \"" + c[t].Text + "\"\n"
+		output += "[" + t.Format(time.RFC822) + "] " + c[t].Author + " > " + c[t].Text + "\n"
 	}
 
 	return output
@@ -50,6 +50,15 @@ type PersonalChat map[user.Login]map[user.Login]Chat
 
 func (pc PersonalChat) SendMessage(from user.Login, to user.Login, text string) {
 	ts := time.Now()
+
+	if _, ok := pc[from]; !ok {
+		pc[from] = map[user.Login]Chat{}
+		pc[from][to] = Chat{}
+
+		pc[to] = map[user.Login]Chat{}
+		pc[to][from] = Chat{}
+	}
+
 	pc[from][to].sendMessage(from, text, ts)
 	pc[to][from].sendMessage(from, text, ts)
 }
