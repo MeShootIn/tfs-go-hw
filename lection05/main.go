@@ -3,22 +3,25 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 	"io"
 	"lection05/chat"
 	"lection05/user"
 	"log"
 	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
+type ContextKey string
+
 const (
-	CookieLogin    = "LOGIN"
-	CookiePassword = "PASSWORD"
-	UserLogin      = "login"
-	UserPassword   = "password"
-	HOST           = "localhost"
-	PORT           = "5000"
+	CookieLogin               = "LOGIN"
+	CookiePassword            = "PASSWORD"
+	UserLogin      ContextKey = "login"
+	UserPassword   ContextKey = "password"
+	HOST                      = "localhost"
+	PORT                      = "5000"
 )
 
 var (

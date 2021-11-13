@@ -48,7 +48,7 @@ func main() {
 		<-signalChan
 		cancel()
 		logger.Info("price generation process cancelled")
-		logger.Info("candles for all periods are saved in the candles_{%period}.csv files")
+		logger.Info("candles for all periods are saved in the candles_{period}.csv files")
 	}()
 
 	// Main handling process
